@@ -6,12 +6,8 @@
 #include <sys/shm.h>
 #include <unistd.h>
 
-#define ARG_MAX_LEN 16
-
-typedef struct {
-    int argc;
-    char **argv;
-} args;
+#include "util.h"
+#include "args.h"
 
 typedef struct {
     int shmid;
@@ -24,13 +20,6 @@ typedef struct {
     uint8_t barrrier_ctrl; // Whether processes are allowed to move on,
                            // manipulated by the main process
 } block_header;
-
-void assert(bool b, char *msg) {
-    if (!b) {
-        printf("%s\n", msg);
-        exit(-1);
-    }
-}
 
 // Creates a process just to run the function that func_ptr points to
 // Exits the child process after that function is run.
@@ -50,50 +39,6 @@ void create_process(void *func_ptr, void *argument) {
     return;
 }
 
-bool arg_parse_uint(args a, char *flag, uint32_t *res) {
-    for (int i = 0; i < a.argc; i++) {
-        char *arg = a.argv[i];
-
-        int arg_len = strnlen(arg, ARG_MAX_LEN);
-        int flag_len = strnlen(flag, ARG_MAX_LEN);
-
-        if (arg_len != flag_len) {
-            continue;
-        }
-
-        if (strncmp(arg, flag, arg_len) == 0 && i < a.argc - 1) {
-            *res = strtoul(a.argv[i + 1], NULL, 10);
-            return true;
-        };
-    }
-
-    return false;
-}
-
-int log_2(int x) {
-    int res = 0;
-    while (x > 1) {
-        x = x >> 1;
-        res++;
-    }
-
-    return res;
-}
-
-int exp_2(int exp) {
-    if (exp < 0) {
-        return 0; // Actually comes in useful when calculating which indices to
-                  // copy
-    }
-
-    int res = 1;
-    for (int i = 0; i < exp; i++) {
-        res *= 2;
-    }
-
-    return res;
-}
-
 // The round number is the one that we are waiting to start, not the current one
 void barrier_wait(int round_num, void *mem_block) {
     // printf("Waiting for round %i to finish\n", round_num - 1);
@@ -101,16 +46,22 @@ void barrier_wait(int round_num, void *mem_block) {
     uint8_t *barrier = mem_block + sizeof(block_header);
     uint8_t barrier_sum = 0;
 
-    // printf("With %i processes, barrier_sum (%i) should greater than %i to continue\n", header->proc_count, barrier_sum, (header->proc_count * round_num));
-    // printf("%i > %i = %d\n", (header->proc_count * round_num), barrier_sum, (header->proc_count * round_num) > barrier_sum);
-    while ((header->proc_count * round_num) >= barrier_sum) {
+    // printf("With %i processes, barrier_sum (%i) should be >= than %i to "
+    //        "continue\n",
+    //        header->proc_count, barrier_sum, (header->proc_count *
+    //        round_num));
+
+    while ((header->proc_count * round_num) > barrier_sum) {
+        // printf("%i > %i = %d\n", (header->proc_count * round_num), barrier_sum, (header->proc_count * round_num) > barrier_sum);
         barrier_sum = 0;
         for (int i = 0; i < header->proc_count; i++) {
             barrier_sum += barrier[i];
             // printf("Barrier sum %i\n", barrier_sum);
         }
-        usleep(1000);
+        usleep(1000 * 250);
     }
+
+    // printf("Barrier done\n");
 }
 
 void round_n(int *array_src, int *array_dst, uint32_t len, uint32_t proc_id,
@@ -160,84 +111,31 @@ void adder(proc_arg *arg) {
     array = (int *)(barrier + header->proc_count);
     array_swap = array + header->count;
 
-    for (int i = 0; i < log_2(header->count); i++) {
+    for (uint32_t i = 0; i < log_2(header->count); i++) {
         printf("Process %i beginning round %i\n", arg->proc_id, i);
-        if (i % 2 == 0) {
-            round_n(array, array_swap, header->count, arg->proc_id,
-                    header->proc_count, i);
-        } else {
-            round_n(array_swap, array, header->count, arg->proc_id,
+
+        round_n(array, array_swap, header->count, arg->proc_id,
                 header->proc_count, i);
-        }
+
+        // Swap pointer
+        void *tmp = array;
+        array = array_swap;
+        array_swap = tmp;
 
         barrier[arg->proc_id]++;
-        printf("Beginning to wait\n");
+        printf("Process %i: Waiting for round %i to complete\n", arg->proc_id, i);
         barrier_wait(i + 1, mem_block);
+
+        // printf("Process %i: Done waiting\n", arg->proc_id);
         while (i + 1 > header->barrrier_ctrl) {
             // Wait
+            usleep(1000);
+            // printf("Process %i: %u > %u = %d\n", arg->proc_id, i+1, header->barrrier_ctrl, i + 1 > header->barrrier_ctrl);
         }
     }
 }
 
-void generate_random(int *ptr, int len) {
-    for (int i = 0; i < len; i++) {
-        ptr[i] = rand() % 256 - 127;
-    }
-}
 
-const int WIDTH = 20;
-void print_array(int *ptr, int len) {
-    // Wrap every 80 bytes
-    int i = 0;
-    while (i < len / WIDTH) {
-        for (int j = 0; j < WIDTH; j++) {
-            printf("%i ", ptr[i * WIDTH + j]);
-        }
-
-        printf("\n");
-
-        i++;
-    }
-
-    // Print the remaining bytes
-    for (int j = 0; j < len % WIDTH; j++) {
-        printf("%i ", ptr[i * WIDTH + j]);
-    }
-
-    printf("\n");
-}
-
-void seq_sum(int *src, int *dst, int len) {
-    memcpy(dst, src, sizeof(int) * len);
-
-    for (int i = 1; i < len; i++) {
-        printf("dst[%i] = %i, dst[%i] = %i\n", i, dst[i], i - 1, dst[i - 1]);
-        dst[i] = dst[i] + dst[i - 1];
-    }
-
-    return;
-}
-
-void print_bytes(char *buf, int len) {
-    // Wrap every 80 bytes
-    int i = 0;
-    while (i < len / WIDTH) {
-        for (int j = 0; j < WIDTH; j++) {
-            printf("%02hhx ", buf[i * WIDTH + j]);
-        }
-
-        printf("\n");
-
-        i++;
-    }
-
-    // Print the remaining bytes
-    for (int j = 0; j < len % WIDTH; j++) {
-        printf("%02hhx ", buf[i * WIDTH + j]);
-    }
-
-    printf("\n");
-}
 
 int main(int argc, char **argv) {
     srand(0);
@@ -254,7 +152,7 @@ int main(int argc, char **argv) {
 
     int mem_size =
         sizeof(block_header) +
-        proc_count  // Each process stores its barrier value in a single byte
+        proc_count // Each process stores its barrier value in a single byte
         + (4 * size) * 2; // Size for the numbers themselves (and a swap array)
 
     int id =
@@ -278,27 +176,44 @@ int main(int argc, char **argv) {
     block_header *header = (block_header *)mem_block;
     char *barrier = mem_block + sizeof(block_header);
     int *array = (int *)(barrier + proc_count);
+    int *array_swap = array + size;
 
     header->proc_count = proc_count;
     header->count = size;
 
-    generate_random(array, size); // Initialize the array
+    generate_random_array(array, size); // Initialize the array
 
     // print_bytes(mem_block, mem_size);
     print_array(array, size);
 
-    int seq_array[size];
-    seq_sum(array, seq_array, size);
-    printf("Sequential:\n");
-    print_array(seq_array, size);
+    // int seq_array[size];
+    // seq_sum(array, seq_array, size);
+    // printf("Sequential:\n");
+    // print_array(seq_array, size);
 
     for (int i = 0; i < proc_count; i++) {
 
         proc_arg arg = {id, i};
         create_process(&adder, (void *)&arg);
-        usleep(1000 * 500);
+        // usleep(1000 * 500);
     }
 
-    while (1) {
-    };
+    for (int i = 0; i < log_2(size); i++) {
+        barrier_wait(i + 1, mem_block);
+        printf("Round %i complete\n", i);
+
+        int begin = exp_2(i - 1);
+        int end = exp_2(i);
+        int len = end - begin;
+
+        memcpy(array_swap + begin, array + begin, len * 4);
+        void *tmp = array;
+        array = array_swap;
+        array_swap = tmp;
+
+        header->barrrier_ctrl++; // Allow processes to continue
+    }
+
+    printf("Final array:\n");
+    print_array(array, size);
 }
