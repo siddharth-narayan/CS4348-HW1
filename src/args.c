@@ -1,11 +1,12 @@
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 #include "args.h"
 
-bool arg_parse_uint(args a, char *flag, uint32_t *res) {
+int arg_parse_flag(args a, char *flag) {
     for (int i = 0; i < a.argc; i++) {
         char *arg = a.argv[i];
 
@@ -16,10 +17,23 @@ bool arg_parse_uint(args a, char *flag, uint32_t *res) {
             continue;
         }
 
-        if (strncmp(arg, flag, arg_len) == 0 && i < a.argc - 1) {
-            *res = strtoul(a.argv[i + 1], NULL, 10);
-            return true;
+        if (strncmp(arg, flag, arg_len) == 0) {
+            return i;
         };
+    }
+
+    return -1;
+}
+
+bool arg_parse_uint(args a, char *flag, uint32_t *res) {
+    int flag_index = arg_parse_flag(a, flag);
+    if (flag_index < 0) {
+        return false;
+    }
+
+    if (flag_index < a.argc - 1) {
+        *res = strtoul(a.argv[flag_index + 1], NULL, 10);
+        return true;
     }
 
     return false;

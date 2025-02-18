@@ -2,7 +2,7 @@
 CC := gcc
 CFLAGS := -Wall -Wextra -O2 -g
 
-SRCS := src/main.c src/args.c src/util.c
+SRCS := src/main.c src/args.c src/util.c src/print.c
 OBJS := $(SRCS:.c=.o)
 
 all: $(OBJS)

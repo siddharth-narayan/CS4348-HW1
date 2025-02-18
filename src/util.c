@@ -1,11 +1,23 @@
-#include <stdlib.h>
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include "print.h"
+#include "util.h"
 
 void generate_random_array(int *ptr, int len) {
     for (int i = 0; i < len; i++) {
         ptr[i] = rand() % 256 - 127;
+    }
+
+    if (DEBUG_MODE >= DEBUG) {
+        color_bold();
+        color_set_16(36);
+        printf("Generated array:\n");
+        print_array(ptr, len);
+        color_clear();
     }
 }
 
@@ -35,31 +47,11 @@ int exp_2(int exp) {
 
 void assert(bool b, char *msg) {
     if (!b) {
+        color_bold();
+        color_set_16(31);
         printf("%s\n", msg);
         exit(-1);
     }
-}
-
-const int WIDTH = 20;
-void print_array(int *ptr, int len) {
-    // Wrap every 80 bytes
-    int i = 0;
-    while (i < len / WIDTH) {
-        for (int j = 0; j < WIDTH; j++) {
-            printf("%i ", ptr[i * WIDTH + j]);
-        }
-
-        printf("\n");
-
-        i++;
-    }
-
-    // Print the remaining bytes
-    for (int j = 0; j < len % WIDTH; j++) {
-        printf("%i ", ptr[i * WIDTH + j]);
-    }
-
-    printf("\n");
 }
 
 void seq_sum(int *src, int *dst, int len) {
@@ -71,25 +63,4 @@ void seq_sum(int *src, int *dst, int len) {
     }
 
     return;
-}
-
-void print_bytes(char *buf, int len) {
-    // Wrap every 80 bytes
-    int i = 0;
-    while (i < len / WIDTH) {
-        for (int j = 0; j < WIDTH; j++) {
-            printf("%02hhx ", buf[i * WIDTH + j]);
-        }
-
-        printf("\n");
-
-        i++;
-    }
-
-    // Print the remaining bytes
-    for (int j = 0; j < len % WIDTH; j++) {
-        printf("%02hhx ", buf[i * WIDTH + j]);
-    }
-
-    printf("\n");
 }
