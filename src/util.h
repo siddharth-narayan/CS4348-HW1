@@ -8,4 +8,4 @@ int exp_2(int exp); // Returns 2^x, if x == 0, returns 0
 
 void assert(bool b, char *msg); // If not true, prints the error message, and exits
 
-
+uint64_t millisec_time();

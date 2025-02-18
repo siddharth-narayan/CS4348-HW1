@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "print.h"
 #include "util.h"
@@ -63,4 +64,10 @@ void seq_sum(int *src, int *dst, int len) {
     }
 
     return;
+}
+
+uint64_t millisec_time() {
+    struct timeval t;
+    gettimeofday(&t, NULL);
+    return t.tv_sec * 1000 + t.tv_usec/1000;
 }

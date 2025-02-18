@@ -17,6 +17,8 @@ typedef enum {
     NONE = 0,
     INFO,
     DEBUG,
+    TRACE,
+    RIDICULOUS, // Use if insane
 } debug_level;
 
 extern const char* DEBUG_STR_ARRAY[]; // Contains enum to string mapping

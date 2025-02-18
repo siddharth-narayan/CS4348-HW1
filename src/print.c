@@ -31,7 +31,7 @@ void print_array(int *ptr, int len) {
     int i = 0;
     while (i < len / PRINT_WIDTH) {
         for (int j = 0; j < PRINT_WIDTH; j++) {
-            printf("%.5i ", ptr[i * PRINT_WIDTH + j]);
+            printf("%-5i ", ptr[i * PRINT_WIDTH + j]);
         }
 
         printf("\n");
@@ -41,7 +41,7 @@ void print_array(int *ptr, int len) {
 
     // Print the remaining ints
     for (int j = 0; j < len % PRINT_WIDTH; j++) {
-        printf("%.5i ", ptr[i * PRINT_WIDTH + j]);
+        printf("%-5i ", ptr[i * PRINT_WIDTH + j]);
     }
 
     printf("\n");
@@ -97,7 +97,7 @@ void print_help() {
 }
 
 uint32_t DEBUG_MODE = 0;
-const char *DEBUG_STR_ARRAY[] = {"NONE", "INFO", "DEBUG"};
+const char *DEBUG_STR_ARRAY[] = {"NONE", "INFO", "DEBUG", "TRACE", "RIDICULOUS"};
 void debug(uint32_t mode, char *format, ...) {
     if (mode > DEBUG_MODE) {
         return;
@@ -111,6 +111,12 @@ void debug(uint32_t mode, char *format, ...) {
         break;
 
     case DEBUG:
+        color_set_16(34);
+        break;
+    case TRACE:
+        color_set_16(35);
+        break;
+    case RIDICULOUS: // What's wrong with you??
         color_set_16(31);
         break;
     }
