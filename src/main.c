@@ -242,4 +242,6 @@ int main(int argc, char **argv) {
     if (shmctl(id, IPC_RMID, 0) < 0) {
         perror("Failed to free shared memory");
     }
+
+    return 0;
 }

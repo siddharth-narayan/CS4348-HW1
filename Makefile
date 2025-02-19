@@ -1,6 +1,6 @@
 
 CC := gcc
-CFLAGS := -Wall -Wextra -O2 -g
+CFLAGS := -Wall -std=c11 -Wextra -O2 -g
 
 SRCS := src/main.c src/args.c src/util.c src/print.c
 OBJS := $(SRCS:.c=.o)
