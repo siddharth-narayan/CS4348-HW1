@@ -13,17 +13,14 @@ void generate_random_array(int *ptr, int len) {
         ptr[i] = rand() % 256 - 127;
     }
 
+    debug(DEBUG, "Generated array:\n");
     if (DEBUG_MODE >= DEBUG) {
-        color_bold();
-        color_set_16(36);
-        printf("Generated array:\n");
-        print_array(ptr, len);
-        color_clear();
+        print_array(ptr, len, "\e[1;34m");
     }
 }
 
-int log_2(int x) {
-    int res = 0;
+uint32_t log_2(int x) {
+    uint32_t res = 0;
     while (x > 1) {
         x = x >> 1;
         res++;
@@ -32,13 +29,13 @@ int log_2(int x) {
     return res;
 }
 
-int exp_2(int exp) {
+uint32_t exp_2(int exp) {
     if (exp < 0) {
         return 0; // Actually comes in useful when calculating which indices to
                   // copy
     }
 
-    int res = 1;
+    uint32_t res = 1;
     for (int i = 0; i < exp; i++) {
         res *= 2;
     }
@@ -69,5 +66,11 @@ void seq_sum(int *src, int *dst, int len) {
 uint64_t millisec_time() {
     struct timeval t;
     gettimeofday(&t, NULL);
-    return t.tv_sec * 1000 + t.tv_usec/1000;
+    return t.tv_sec * 1000 + t.tv_usec / 1000;
+}
+
+__uint128_t microsec_time() {
+    struct timeval t;
+    gettimeofday(&t, NULL);
+    return t.tv_sec * 1000000 + t.tv_usec;
 }

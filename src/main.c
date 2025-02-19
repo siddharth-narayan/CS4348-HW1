@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/shm.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "args.h"
 #include "print.h"
@@ -18,9 +18,8 @@ typedef struct {
 
 typedef struct {
     uint32_t proc_count;
-    uint32_t count;        // How many numbers there are total
-    volatile uint8_t barrrier_ctrl; // Whether processes are allowed to move on,
-                           // manipulated by the main process
+    uint32_t count;                 // How many numbers there are total
+    volatile uint8_t barrrier_ctrl; // Whether processes are allowed to move on, manipulated by the main process
 } block_header;
 
 // Creates a process just to run the function that func_ptr points to
@@ -45,10 +44,11 @@ void create_process(void *func_ptr, void *argument) {
 void barrier_wait(int round_num, void *mem_block) {
     block_header *header = (block_header *)mem_block;
     volatile uint8_t *barrier = mem_block + sizeof(block_header);
+
     uint32_t barrier_sum = 0;
     while ((header->proc_count * round_num) > barrier_sum) {
         barrier_sum = 0;
-        for (int i = 0; i < header->proc_count; i++) {
+        for (uint32_t i = 0; i < header->proc_count; i++) {
             barrier_sum += barrier[i];
         }
         debug(RIDICULOUS, "barrier_sum: %i\n", barrier_sum);
@@ -56,13 +56,13 @@ void barrier_wait(int round_num, void *mem_block) {
 }
 
 // Runs the nth round of calculation
-void round_n(int *array_src, int *array_dst, uint32_t len, uint32_t proc_id, uint32_t proc_count, int round_num) {
-    int unsolved = exp_2(round_num); // Index of first unsolved number
+void round_n(int *array_src, int *array_dst, uint32_t len, uint32_t proc_id, uint32_t proc_count, uint32_t round_num) {
+    uint32_t unsolved = exp_2(round_num); // Index of first unsolved number
 
-    int local_len =
-        (len - unsolved + proc_count - 1) / proc_count; // The number of indices the process are responsible for
-    int begin = unsolved + local_len * proc_id;
-    int end = begin + local_len; // NON INCLUSIVE!
+    uint32_t local_len =
+        (len - unsolved + proc_count - 1) / proc_count; // The number of indices the processes are responsible for
+    uint32_t begin = unsolved + local_len * proc_id;
+    uint32_t end = begin + local_len; // NON INCLUSIVE!
 
     if (begin > len) {
         return; // This process is unecessary
@@ -72,23 +72,23 @@ void round_n(int *array_src, int *array_dst, uint32_t len, uint32_t proc_id, uin
         end = len;
     }
 
-    debug(DEBUG, "For round %u, process %u is responsible for indices %i-%i (len = %i)\n", round_num, proc_id, begin, end - 1,
-          local_len);
+    debug(DEBUG, "For round %u, process %u is responsible for indices %i-%i (len = %i)\n", round_num, proc_id, begin,
+          end - 1, local_len);
 
-    int offset = exp_2(round_num);
-    for (int i = begin; i < end; i++) {
+    uint32_t offset = exp_2(round_num);
+    for (uint32_t i = begin; i < end; i++) {
         array_dst[i] = array_src[i] + array_src[i - offset];
-        debug(TRACE, "Process %i: array_dst[%i] = array_src[%i] + array_src[%i]\n", proc_id, i, i, i - offset);
-        debug(TRACE, "=> Process %i: array_dst[%i] = %i + %i = %i\n", proc_id, i, array_src[i], array_src[i - offset], array_dst[i]);
+        debug(TRACE, "Process %i: array_dst[%i] = array_src[%i] + array_src[%i]\n=> array_dst[%i] = %i + %i = %i\n",
+              proc_id, i, i, i - offset, i, array_src[i], array_src[i - offset], array_dst[i]);
     }
 }
 
 // The entry point for child processes to begin calculation
-void adder(proc_arg *arg) {
+void child_entry(proc_arg *arg) {
     debug(INFO, "Created Process %u\n", arg->proc_id);
 
     block_header *header;
-    volatile char *barrier;
+    volatile uint8_t *barrier;
     int *array;
     int *array_swap;
 
@@ -106,7 +106,7 @@ void adder(proc_arg *arg) {
     for (uint32_t i = 0; i < log_2(header->count * 2 - 1); i++) { // Run for ceil(log_2(count)) times
         debug(INFO, "Process %i beginning round %i\n", arg->proc_id, i);
 
-        round_n(array, array_swap, header->count, arg->proc_id, header->proc_count, i);
+        round_n(array, array_swap, header->count, arg->proc_id, header->proc_count, i); // Run calculation for round n
 
         // Swap pointer
         void *tmp = array;
@@ -152,8 +152,7 @@ int main(int argc, char **argv) {
     int mem_size = sizeof(block_header) + proc_count // Each process stores its barrier value in a single byte
                    + (4 * size) * 2;                 // Size for the numbers themselves (and a swap array)
 
-    int id = shmget(IPC_PRIVATE, mem_size,
-                    IPC_CREAT | 0600);
+    int id = shmget(IPC_PRIVATE, mem_size, IPC_CREAT | 0600);
     if (id < 0) {
         perror("Failed to create shared memory");
         exit(-1);
@@ -178,68 +177,54 @@ int main(int argc, char **argv) {
     generate_random_array(array, size); // Initialize the array
 
     int *seq_array = malloc(size * sizeof(int));
-    
-    uint64_t time_begin = millisec_time();
+
+    uint64_t seq_timer = millisec_time();
     seq_sum(array, seq_array, size);
-    color_bold();
-    // color_set_16(32);
-    printf("seq_sum took \e[32m%lu \e[0;1mmilliseconds\n", millisec_time() - time_begin);
-    color_clear();
+    debug(NONE, "seq_sum took \e[1;32m%lu \e[0mmilliseconds\n", millisec_time() - seq_timer);
 
+    debug(DEBUG, "Sequential prefix sum result:\n");
     if (DEBUG_MODE >= DEBUG) {
-        color_bold();
-        color_set_256(214);
-
-        printf("Sequential prefix sum result:\n");
-        print_array(seq_array, size);
-        
-        color_clear();
+        print_array(seq_array, size, "\e[1;34m");
     }
 
-    for (int i = 0; i < proc_count; i++) {
+    for (uint32_t i = 0; i < proc_count; i++) {
 
         proc_arg arg = {id, i};
-        create_process(&adder, (void *)&arg);
+        create_process(&child_entry, (void *)&arg);
     }
 
-    time_begin = millisec_time();
+    uint64_t parallel_timer = millisec_time();
 
-    for (int i = 0; i < log_2(size * 2 - 1); i++) { // Run for ceil(log_2(size)) times
-        debug(INFO, "Main process: waiting for round %i to complete\n", i);
+    for (uint32_t i = 0; i < log_2(size * 2 - 1); i++) { // Run for ceil(log_2(size)) times
+        debug(INFO, "Main process: waiting for round %u to complete\n", i);
+
+        __uint128_t round_timer = microsec_time();
         barrier_wait(i + 1, mem_block);
-        debug(INFO, "Round %i complete\n", i);
+        debug(INFO, "Round %i complete in \e[1;32m%llu \e[0;1;36mmicroseconds\n", i, microsec_time() - round_timer);
 
         int begin = exp_2(i - 1);
         int end = exp_2(i);
         int len = end - begin;
 
-        memcpy(array_swap + begin, array + begin, len * 4); // Copy the already solved indices to the destination array 
-        void *tmp = array;
+        memcpy(array_swap + begin, array + begin, len * 4); // Copy the already solved indices to the destination array
+        void *tmp = array;                                  // Swap pointers so src -> dst and dst -> src
         array = array_swap;
         array_swap = tmp;
 
+        debug(DEBUG, "The array looks like this at the end of round %i:\n", i);
         if (DEBUG_MODE >= DEBUG) {
-            color_bold();
-            color_set_16(34);
-            printf("[DEBUG]: The array looks like this at the end of round %i:\n", i);
-            print_array(array, size);
-            color_clear();
+            print_array(array, size, "\e[1;34m");
         }
+
         header->barrrier_ctrl++; // Allow processes to continue
     }
 
-    color_bold();
-    // color_set_16(32);
-    printf("Parallel prefix sum took \e[32m%lu \e[0;1m milliseconds\n", millisec_time() - time_begin);
-    color_clear();
-    
+    debug(DEBUG, "Final array:\n");
     if (DEBUG_MODE >= DEBUG) {
-        color_bold();
-        color_set_256(214);
-        printf("Final array:\n");
-        print_array(array, size);
-        color_clear();
+        print_array(array, size, "\e[1;34m");
     }
+
+    debug(NONE, "Parallel prefix sum took \e[1;32m%lu \e[0mmilliseconds\n", millisec_time() - parallel_timer);
 
     if (memcmp(array, seq_array, sizeof(int) * size) == 0) {
         printf("\e[1;32mParallel prefix sum matches sequential prefix sum\n");
@@ -249,7 +234,12 @@ int main(int argc, char **argv) {
 
     usleep(1000 * 100); // Wait .1 seconds for everything to exit
 
-    // Free everything
-    shmctl(id, IPC_RMID, 0); // Remove shared memory?
+    //// Free everything ////
+
     free(seq_array);
+
+    // Remove shared memory?
+    if (shmctl(id, IPC_RMID, 0) < 0) {
+        perror("Failed to free shared memory");
+    }
 }
