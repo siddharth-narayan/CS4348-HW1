@@ -40,9 +40,8 @@ void barrier_wait(uint64_t target, volatile uint64_t *barrier) {
     uint32_t backoff = 1; // Milliseconds
     while (target > *barrier) {
         struct timespec ts = {0, backoff * 1000};
-        nanosleep(&ts, NULL); // Sleep to allow quicker execution
+        nanosleep(&ts, NULL); // Sleep to allow quicker execution for other processes
         backoff *= 2;
-        // debug(RIDICULOUS, "Target: %lu barrier: %lu\n", target, barrier);
     }
 }
 
@@ -72,26 +71,20 @@ void round_n(block_header *header, uint32_t proc_id, uint32_t round_num) {
         end = header->num_count;
     }
 
-    // debug(DEBUG, "For round %u, process %u is responsible for indices %i-%i (len = %i)\n", round_num, proc_id, begin,
-    //       end - 1, local_len);
+    debug(DEBUG, "For round %u, process %u is responsible for indices %i-%i (len = %i)\n", round_num, proc_id, begin,
+          end - 1, local_len);
 
     uint32_t offset = exp_2(round_num);
     for (uint32_t i = begin; i < end; i++) {
-        uint32_t future = i + 1;
-        if (future < end) {
-            __builtin_prefetch(&header->array[future], 0, 3);
-            __builtin_prefetch(&header->array[future + offset], 0, 3);
-        }
-
         header->array_swap[i] = header->array[i] + header->array[i - offset];
-        // debug(TRACE, "Process %i: array_dst[%i] = array_src[%i] + array_src[%i] => array_dst[%i] = %i + %i = %i\n",
-            //   proc_id, i, i, i - offset, i, header->array[i], header->array[i - offset], header->array_swap[i]);
+        debug(RIDICULOUS, "Process %i: array_dst[%i] = array_src[%i] + array_src[%i] => array_dst[%i] = %i + %i = %i\n",
+              proc_id, i, i, i - offset, i, header->array[i], header->array[i - offset], header->array_swap[i]);
     }
 }
 
 // The entry point for child processes to begin calculation
 void child_entry(proc_arg *arg) {
-    // debug(INFO, "Created Process %u\n", arg->proc_id);
+    debug(INFO, "Created Process %u\n", arg->proc_id);
 
     block_header *header;
 
@@ -105,16 +98,21 @@ void child_entry(proc_arg *arg) {
 
     for (uint32_t round_num = 0; round_num < log_2(header->num_count * 2 - 1);
          round_num++) { // Run for ceil(log_2(num_count)) times
-        // debug(INFO, "Process %i beginning round %i\n", arg->proc_id, round_num);
+        debug(TRACE, "Process %i beginning round %i\n", arg->proc_id, round_num);
 
         round_n(header, arg->proc_id, round_num); // Run calculation for round n
 
-        atomic_fetch_add(&header->barrier, 1); // Mark this process as done with its work for this round
+        // atomic_fetch_add(&header->barrier, 1); // Mark this process as done with its work for this round
 
-        // debug(INFO, "Process %i: Waiting for round %i to complete\n", arg->proc_id, round_num);
+        debug(TRACE, "Process %i: Waiting for round %i to complete\n", arg->proc_id, round_num);
 
         // Wait for other processes
-        uint32_t target_barrier_val = (header->proc_count + 1) * (round_num + 1);
+        uint32_t target_barrier_val = (header->proc_count + 1) * (round_num) + arg->proc_id;
+        barrier_wait(target_barrier_val, &header->barrier);
+
+        header->barrier++;
+
+        target_barrier_val = (header->proc_count + 1) * (round_num + 1);
         barrier_wait(target_barrier_val, &header->barrier);
     }
 }
@@ -159,7 +157,7 @@ int main(int argc, char **argv) {
         exit(-1);
     }
 
-    // debug(INFO, "Created shared memory with id %i\n", id);
+    debug(INFO, "Created shared memory with id %i\n", id);
 
     memset(mem_block, 0, mem_size); // Set the block to 0s
 
@@ -172,28 +170,27 @@ int main(int argc, char **argv) {
     header->array = PTR_CACHE_ALIGN(mem_block + sizeof(block_header));
     header->array_swap = PTR_CACHE_ALIGN(header->array + (4 * header->num_count)); // Overlaps here?
 
-    generate_random_array(header->array, size); // Initialize the array
+    generate_random_array(header->array, header->num_count); // Initialize the array
 
     int *seq_array = malloc(size * sizeof(int));
 
     __uint128_t seq_timer = microsec_time();
-    seq_sum(header->array, seq_array, size);
+    seq_sum(header->array, seq_array, header->num_count);
     printf("seq_sum took \e[1;32m%llu \e[0mmicroseconds\n", microsec_time() - seq_timer);
 
-    // debug(DEBUG, "Sequential prefix sum result:\n");
-    // if (DEBUG_MODE >= DEBUG) {
-    //     print_array(seq_array, size, "\e[1;34m");
-    // }
+    debug(DEBUG, "Sequential prefix sum result:\n");
+    if (DEBUG_MODE >= DEBUG) {
+        print_array(seq_array, header->num_count, "\e[1;34m");
+    }
 
     for (uint32_t i = 0; i < proc_count; i++) {
         proc_arg arg = {id, i};
         create_process(&child_entry, (void *)&arg);
     }
-    
 
     uint64_t parallel_timer = millisec_time();
 
-    for (uint32_t round_num = 0; round_num < log_2(size * 2 - 1); round_num++) { // Run for ceil(log_2(size)) times
+    for (uint32_t round_num = 0; round_num < log_2(header->num_count * 2 - 1); round_num++) { // Run for ceil(log_2(size)) times
         // debug(INFO, "Main process: waiting for round %u to complete\n", round_num);
 
         __uint128_t round_timer = microsec_time();
@@ -201,7 +198,7 @@ int main(int argc, char **argv) {
         barrier_wait(barrier_target, &header->barrier);
 
         // debug(INFO, "Round %i complete in \e[1;32m%llu \e[0;1;36mmicroseconds\n", round_num,
-            //   microsec_time() - round_timer);
+        //   microsec_time() - round_timer)q;
 
         int begin = exp_2(round_num - 1);
         int end = exp_2(round_num);
@@ -213,18 +210,25 @@ int main(int argc, char **argv) {
         header->array = header->array_swap;
         header->array_swap = tmp;
 
-        // debug(DEBUG, "The array looks like this at the end of round %i:\n", round_num);
-        if (DEBUG_MODE >= DEBUG) {
-            print_array(header->array, size, "\e[1;34m");
+        debug(TRACE, "The array looks like this at the end of round %i:\n", round_num);
+        if (DEBUG_MODE >= TRACE) {
+            print_array(header->array, header->num_count, "\e[1;35m");
         }
 
-        __atomic_fetch_add(&header->barrier, 1, __ATOMIC_SEQ_CST);
+        debug(INFO, "Round %u has ended\n", round_num);
+
+        header->barrier++; // This is safe
     }
 
-    // debug(RIDICULOUS, "Final bytes:\n");
-    // if (DEBUG_MODE >= DEBUG) {
-    //     print_bytes(mem_block, mem_size, "\e[1;34m");
-    // }
+    debug(DEBUG, "Final array:\n");
+    if (DEBUG_MODE >= DEBUG) {
+        print_array(header->array, header->num_count, "\e[1;34m");
+    }
+
+    debug(TRACE, "Final bytes:\n");
+    if (DEBUG_MODE >= TRACE) {
+        print_bytes(mem_block, mem_size, "\e[1;35m");
+    }
 
     printf("Parallel prefix sum took \e[1;32m%lu \e[0mmilliseconds\n", millisec_time() - parallel_timer);
 

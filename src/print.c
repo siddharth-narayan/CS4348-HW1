@@ -111,9 +111,7 @@ void print_help() {
 
 uint32_t DEBUG_MODE = 0;
 const char *DEBUG_STR_ARRAY[] = {"NONE", "INFO", "DEBUG", "TRACE", "RIDICULOUS"};
-void debug(uint32_t mode, char *format, ...) {
-    #define DEBUG_ON
-    #ifdef DEBUG_ON
+inline void debug(uint32_t mode, char *format, ...) {
     if (mode > DEBUG_MODE) {
         return;
     }
@@ -148,5 +146,4 @@ void debug(uint32_t mode, char *format, ...) {
     va_end(args);
 
     color_clear();
-    #endif
 }
