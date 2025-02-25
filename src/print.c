@@ -112,7 +112,8 @@ void print_help() {
 uint32_t DEBUG_MODE = 0;
 const char *DEBUG_STR_ARRAY[] = {"NONE", "INFO", "DEBUG", "TRACE", "RIDICULOUS"};
 void debug(uint32_t mode, char *format, ...) {
-    #ifdef DEBUG
+    #define DEBUG_ON
+    #ifdef DEBUG_ON
     if (mode > DEBUG_MODE) {
         return;
     }

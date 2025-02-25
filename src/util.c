@@ -19,6 +19,10 @@ void generate_random_array(int *ptr, int len) {
     }
 }
 
+int max(int a, int b) {
+    return a > b ? a : b;
+}
+
 uint32_t log_2(int x) {
     uint32_t res = 0;
     while (x > 1) {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 #define ARG_MAX_LEN 16
 
 typedef struct {
