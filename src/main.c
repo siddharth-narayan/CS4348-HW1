@@ -1,4 +1,4 @@
-#include <stdatomic.h>
+// #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -238,8 +238,10 @@ int main(int argc, char **argv) {
         printf("\e[1;31mParallel prefix sum does NOT match sequential prefix sum\n");
     }
 
-    //// Free everything ////
+    //// Cleanup ////
 
+    color_clear();
+    
     free(seq_array);
 
     // Remove shared memory?
