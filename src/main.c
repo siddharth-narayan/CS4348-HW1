@@ -131,6 +131,7 @@ int main(int argc, char **argv) {
     }
     arg_parse_uint(args, "-s", &size);
     arg_parse_uint(args, "-j", &proc_count);
+
     if (arg_parse_flag(args, "-d") >= 0) {
         DEBUG_MODE = 1;
         arg_parse_uint(args, "-d", &DEBUG_MODE);
@@ -170,7 +171,14 @@ int main(int argc, char **argv) {
     header->array = PTR_CACHE_ALIGN(mem_block + sizeof(block_header));
     header->array_swap = PTR_CACHE_ALIGN(header->array + (4 * header->num_count)); // Overlaps here?
 
-    generate_random_array(header->array, header->num_count); // Initialize the array
+    int filename_index = arg_parse_str(args, "-f");
+    if (filename_index < 0) {
+        generate_array(header->array, header->num_count); // Initialize the array`
+    } else {
+        if (!read_array(args.argv[filename_index], header->array, header->num_count)) {
+            generate_array(header->array, header->num_count);
+        }
+    }
 
     int *seq_array = malloc(size * sizeof(int));
 
@@ -190,15 +198,15 @@ int main(int argc, char **argv) {
 
     uint64_t parallel_timer = millisec_time();
 
-    for (uint32_t round_num = 0; round_num < log_2(header->num_count * 2 - 1); round_num++) { // Run for ceil(log_2(size)) times
-        // debug(INFO, "Main process: waiting for round %u to complete\n", round_num);
+    for (uint32_t round_num = 0; round_num < log_2(header->num_count * 2 - 1);
+         round_num++) { // Run for ceil(log_2(size)) times
 
         __uint128_t round_timer = microsec_time();
         uint64_t barrier_target = ((header->proc_count + 1) * (round_num + 1)) - 1;
         barrier_wait(barrier_target, &header->barrier);
 
-        // debug(INFO, "Round %i complete in \e[1;32m%llu \e[0;1;36mmicroseconds\n", round_num,
-        //   microsec_time() - round_timer)q;
+        debug(DEBUG, "Round %i complete in \e[1;32m%llu \e[0;1;36mmicroseconds\n", round_num,
+              microsec_time() - round_timer);
 
         int begin = exp_2(round_num - 1);
         int end = exp_2(round_num);
@@ -238,10 +246,17 @@ int main(int argc, char **argv) {
         printf("\e[1;31mParallel prefix sum does NOT match sequential prefix sum\n");
     }
 
+    FILE *output = fopen("output", "w");
+    for (int i = 0; i < header->num_count; i++) {
+        fprintf(output, "%d\n", header->array[i]);
+    }
+
+    fclose(output);
+
     //// Cleanup ////
 
     color_clear();
-    
+
     free(seq_array);
 
     // Remove shared memory?

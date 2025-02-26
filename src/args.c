@@ -25,6 +25,15 @@ int arg_parse_flag(args a, char *flag) {
     return -1;
 }
 
+int arg_parse_str(args a, char *flag) {
+    int flag_index = arg_parse_flag(a, flag);
+    if (flag_index < 0 || flag_index >= a.argc - 2) {
+        return -1;
+    }
+
+    return flag_index + 1;
+}
+
 bool arg_parse_uint(args a, char *flag, uint32_t *res) {
     int flag_index = arg_parse_flag(a, flag);
     if (flag_index < 0) {

@@ -32,7 +32,7 @@ void print_array(int *ptr, int len, char *ansi_color_format) {
     int i = 0;
     while (i < len / PRINT_WIDTH) {
         for (int j = 0; j < PRINT_WIDTH; j++) {
-            printf("%-5i ", ptr[i * PRINT_WIDTH + j]);
+            printf("%-6i ", ptr[i * PRINT_WIDTH + j]);
         }
 
         printf("\n");
@@ -92,20 +92,23 @@ void print_help() {
            "  \e[1;36mparallel_prefix_sum \e[39m [OPTIONS]\n\n"
            "\e[36mOptions:\n"
 
+           "  \e[36m-f \e[38;5;214m<path>            \e[39mSets filepath for the array input. If not specified, an "
+           "array will be generated automatically.\n"
+
            "  \e[36m-s \e[38;5;214m<num>             \e[39mSets the number "
            "of integers in the generated array that will be used for the prefix "
-           "sum algorithm\n"
+           "sum algorithm.\n"
 
            "  \e[36m-j \e[38;5;214m<num>             \e[39mSets the number "
            "of processes that will be created to run the prefix sum algorithm in "
-           "parallel\n"
+           "parallel.\n"
 
            "  \e[36m-d \e[38;5;214m<level>           \e[39mSets the debug level. This flag can be used standalone "
            "without a level, which will be basic debugging.\n"
 
            "  \e[36m-h \e[39mor \e[36m--help         \e[39mPrint this "
            "help "
-           "dialogue\n"
+           "dialogue.\n"
            "\e[0m");
 }
 

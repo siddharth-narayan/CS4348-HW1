@@ -13,6 +13,10 @@ typedef struct {
 // Otherwise returns -1
 int arg_parse_flag(args a, char *flag);
 
+// Returns the index of the string if found
+// Otherwise returns -1
+int arg_parse_str(args a, char *flag);
+
 // Returns true if the flag was found, false if not
 // If it returns true, it might not necessarily have
 // Parsed a real number. For instance
